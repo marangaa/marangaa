@@ -7,9 +7,9 @@ this page is alive.
 </p>
 
 <p align="center">
-  <i>conway's game of life, running in this repo. the world evolves on its own,
-  a few times a day. nothing here is a gif — what you see is the actual current
-  state of the simulation.</i>
+  <i>conway's game of life, playing live. this is not a gif — it's a real simulation
+  running in this repo. what you're watching is the latest episode: 30 generations
+  of an actual evolving world, looping. a new episode premieres every few hours.</i>
 </p>
 
 ### 🎮 you can play

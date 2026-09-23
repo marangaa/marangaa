@@ -1,11 +1,15 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Conway's Game of Life that lives in a GitHub profile README.
 
+Renders an *animated* SVG: each run evolves the world MOVIE_FRAMES generations
+and bakes them into a looping SMIL movie, so the profile shows the simulation
+actually playing, not a static snapshot.
+
 Stdlib only. Usage:
-    python scripts/life.py step                 # advance one generation, re-render
-    python scripts/life.py toggle 12,5 13,5     # toggle cells (used by issue workflow)
-    python scripts/life.py render               # just re-render the SVG
+    python scripts/life.py step                 # evolve a full episode, re-render
+    python scripts/life.py toggle 12,5 13,5     # toggle cells, then evolve an episode
+    python scripts/life.py render               # re-render movie from current state
 
 State lives in state/life.json, output in dist/life.svg.
 """
@@ -21,8 +25,14 @@ SVG_FILE = ROOT / "dist" / "life.svg"
 
 COLS, ROWS = 72, 24
 CELL, GAP = 11, 1          # cell size px, gap px
+PITCH = CELL + GAP
 PAD = 8                    # svg padding px
 MIN_POP_BEFORE_GLIDER = 6  # inject a glider if population drops below this
+
+MOVIE_FRAMES = 30          # generations per episode
+FRAME_SECONDS = 0.5        # seconds per frame
+DURATION = MOVIE_FRAMES * FRAME_SECONDS
+HOLD = 1.0 / MOVIE_FRAMES  # fraction of loop each frame is visible
 
 BG = "#0d1117"
 GRID = "#161b22"
@@ -37,7 +47,7 @@ def load_state():
 
 def save_state(state):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=1))
+    STATE_FILE.write_text(json.dumps(state, indent=1), encoding="utf-8")
 
 
 def cell_set(state):
@@ -57,7 +67,7 @@ def seed(state):
     state["generation"] = 0
 
 
-def step(state):
+def step_once(state):
     live = cell_set(state)
     ages = state.get("ages", {})
     counts = {}
@@ -103,6 +113,7 @@ def toggle(state, coords):
     state["cells"] = [list(c) for c in live]
 
 
+
 def cell_color(age):
     """Young cells glow bright green; ancient ones fade to deep teal."""
     if age <= 1:
@@ -114,65 +125,81 @@ def cell_color(age):
     return "#1a7f6e"
 
 
-def render(state):
-    live = cell_set(state)
-    ages = state.get("ages", {})
-    gen = state.get("generation", 0)
-    w = PAD * 2 + COLS * (CELL + GAP)
-    h = PAD * 2 + ROWS * (CELL + GAP) + 22
+def snapshot(state):
+    """(live cells, per-cell ages) for one frame."""
+    return cell_set(state), dict(state.get("ages", {}))
+
+
+def render_movie(frames, generation, population):
+    w = PAD * 2 + COLS * PITCH
+    h = PAD * 2 + ROWS * PITCH + 22
 
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
         f'<rect width="{w}" height="{h}" rx="8" fill="{BG}"/>',
+        # empty grid drawn once via a pattern (keeps file small)
+        f'<defs><pattern id="g" width="{PITCH}" height="{PITCH}" patternUnits="userSpaceOnUse">'
+        f'<rect width="{CELL}" height="{CELL}" rx="2" fill="{GRID}"/></pattern></defs>',
+        f'<rect x="{PAD}" y="{PAD}" width="{COLS * PITCH}" height="{ROWS * PITCH}" fill="url(#g)"/>',
     ]
-    for gy in range(ROWS):
-        for gx in range(COLS):
-            x = PAD + gx * (CELL + GAP)
-            y = PAD + gy * (CELL + GAP)
-            if (gx, gy) in live:
-                age = ages.get(f"{gx},{gy}", 1)
-                parts.append(
-                    f'<rect x="{x}" y="{y}" width="{CELL}" height="{CELL}" rx="2" '
-                    f'fill="{cell_color(age)}"><title>age {age}</title></rect>'
-                )
-            else:
-                parts.append(
-                    f'<rect x="{x}" y="{y}" width="{CELL}" height="{CELL}" rx="2" fill="{GRID}"/>'
-                )
+    for i, (live, ages) in enumerate(frames):
+        begin = -i * FRAME_SECONDS
+        # fade in fast, hold, fade out, stay hidden for the rest of the loop
+        parts.append(
+            f'<g opacity="0"><animate attributeName="opacity" '
+            f'values="0;1;1;0;0" keyTimes="0;0.002;{HOLD - 0.004:.4f};{HOLD:.4f};1" '
+            f'dur="{DURATION}s" begin="{begin}s" repeatCount="indefinite"/>'
+        )
+        for gx, gy in sorted(live):
+            x = PAD + gx * PITCH
+            y = PAD + gy * PITCH
+            age = ages.get(f"{gx},{gy}", 1)
+            parts.append(
+                f'<rect x="{x}" y="{y}" width="{CELL}" height="{CELL}" rx="2" '
+                f'fill="{cell_color(age)}"/>'
+            )
+        parts.append("</g>")
     parts.append(
         f'<text x="{PAD}" y="{h - 8}" font-family="monospace" font-size="12" '
-        f'fill="{GEN_COLOR}">generation {gen} · population {len(live)} · '
+        f'fill="{GEN_COLOR}">generation {generation} Â· population {population} Â· '
         f'open an issue titled "life: x,y" to play</text>'
     )
     parts.append("</svg>")
     SVG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    SVG_FILE.write_text("\n".join(parts))
+    SVG_FILE.write_text("\n".join(parts), encoding="utf-8")
+
+
+def evolve_episode(state):
+    """Advance MOVIE_FRAMES generations, collecting every frame for the movie."""
+    frames = [snapshot(state)]
+    for _ in range(MOVIE_FRAMES):
+        step_once(state)
+        frames.append(snapshot(state))
+    render_movie(frames, state["generation"], len(state["cells"]))
 
 
 def main():
     state = load_state()
-    if not state["cells"] and (len(sys.argv) < 2 or sys.argv[1] != "toggle"):
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "step"
+
+    if not state["cells"]:
         seed(state)
 
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "step"
     if cmd == "step":
-        if not state["cells"]:
-            seed(state)
-        step(state)
+        evolve_episode(state)
     elif cmd == "toggle":
         coords = []
         for arg in sys.argv[2:]:
             x, y = arg.split(",")
             coords.append((int(x), int(y)))
         toggle(state, coords)
+        evolve_episode(state)
     elif cmd == "render":
-        if not state["cells"]:
-            seed(state)
+        evolve_episode(state)
     else:
         sys.exit(f"unknown command: {cmd}")
 
     save_state(state)
-    render(state)
     print(f"gen={state['generation']} population={len(state['cells'])}")
 
 
