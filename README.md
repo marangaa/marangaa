@@ -7,8 +7,9 @@ this page is alive.
 </p>
 
 <p align="center">
-  <i>conway's game of life, running in this repo. a github action advances the world
-  every 6 hours. nothing here is a gif — what you see is the actual current state of the simulation.</i>
+  <i>conway's game of life, running in this repo. the world evolves on its own,
+  a few times a day. nothing here is a gif — what you see is the actual current
+  state of the simulation.</i>
 </p>
 
 ### 🎮 you can play
@@ -20,8 +21,8 @@ life: 12,5 13,5 14,5
 ```
 
 each `x,y` toggles a cell in the world above (grid is 72×24, wrapping at the edges).
-a workflow applies your move within a minute. drop a glider, spawn chaos, kill my
-carefully balanced ecosystem — it's your move.
+your move will be absorbed into the simulation on its next evolution. drop a glider,
+spawn chaos, kill my carefully balanced ecosystem — it's your move.
 
 ### about me
 
@@ -31,4 +32,4 @@ carefully balanced ecosystem — it's your move.
 
 ---
 
-<sub>world engine: [`scripts/life.py`](./scripts/life.py) · evolved by github actions · inspired by conway (1970)</sub>
+<sub>world engine: [`scripts/life.py`](./scripts/life.py) · inspired by conway (1970)</sub>
