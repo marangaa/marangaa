@@ -132,7 +132,7 @@ def snapshot(state):
 
 def render_movie(frames, generation, population):
     w = PAD * 2 + COLS * PITCH
-    h = PAD * 2 + ROWS * PITCH + 22
+    h = PAD * 2 + ROWS * PITCH - GAP
 
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
@@ -159,11 +159,6 @@ def render_movie(frames, generation, population):
                 f'fill="{cell_color(age)}"/>'
             )
         parts.append("</g>")
-    parts.append(
-        f'<text x="{PAD}" y="{h - 8}" font-family="monospace" font-size="12" '
-        f'fill="{GEN_COLOR}">generation {generation} Â· population {population} Â· '
-        f'open an issue titled "life: x,y" to play</text>'
-    )
     parts.append("</svg>")
     SVG_FILE.parent.mkdir(parents=True, exist_ok=True)
     SVG_FILE.write_text("\n".join(parts), encoding="utf-8")
